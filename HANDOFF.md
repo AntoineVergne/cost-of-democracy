@@ -44,10 +44,25 @@ billions into a felt ratio. See README §"The core comparison".
 |---|---|---|
 | Intent + comparable-tools landscape | `README.md` | done |
 | Full architecture & decisions | `docs/DESIGN.md` | done, locked |
-| Concept prototype (Three.js blobs) | `prototype/blobs.html` | runs; **illustrative data only** |
+| **Prototype v2** (premium 3D + watercolor) | `prototype/blobs.html` | runs; **illustrative data only** |
 | Data pipeline / real figures | — | not started |
 | Build tooling (Vite/TS/tests) | — | not started |
 | Repo-level `AGENTS.md` (run/test cmds) | — | not started — **create when you scaffold** |
+
+**Prototype v2 — what's implemented** (single self-contained HTML, Three.js r0.161 via CDN):
+- **Premium 3D mode:** liquid-metal `MeshStandardMaterial` blobs (metalness 0.92, roughness
+  0.16), procedural HDRI reflections via `RoomEnvironment` + `PMREMGenerator`, warm radial-
+  gradient skydome, `ShadowMaterial` ground, `UnrealBloomPass` (strength 0.7 / threshold 1.0,
+  only HDR speculars bloom) + `OutputPass`, ACESFilmic tone mapping, gentle per-blob bob.
+- **Watercolor mode (View D preview):** toggled via the top switch. SVG, paper background
+  with grain filter, circles at the *same* ∛ scale rendered through a `feTurbulence` +
+  `feDisplacementMap` watercolor filter (wet-on-wet layered fills, sepia leader lines,
+  IBM Plex Serif italic labels). Honest horizontal-scroll layout.
+- **Shared:** one data array + math (volume ∝ money, `radius = ∛(amountM) × 0.85 m`, anchor
+  €1M = 1.7 m person), person silhouette, hover tooltips, live HUD (view width ≈ € across),
+  legend toggles, camera-focus buttons, brutalist UI panels (cream/IBM Plex Mono/pillar colors).
+- **Verified:** serves HTTP 200; all premium tokens present. **Not verified in this env:**
+  actual WebGL render (no browser) — open it to confirm visuals.
 
 **Predecessor (inspiration only, do not extend):** the MVP at
 `https://cost-of-democracy.missionspubliques.tech`. It proved volume ∝ money with *voxel
