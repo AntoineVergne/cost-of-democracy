@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cost of Democracy — Blob Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#F5F1E8; --surface:#FFFCF5; --ink:#1A1A1A; --muted:#6B6B6B;
+    --rust:#C0392B; --blue:#2E86AB; --green:#5D9B4B; --purple:#7B4F8F; --gold:#D4A017;
+    --border:1px solid #1A1A1A;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#0d1117;color:var(--ink);font-family:'IBM Plex Mono',ui-monospace,monospace;overflow:hidden}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+
+  /* Brutalist overlay panels */
+  .panel{background:var(--bg);border:var(--border);box-shadow:4px 4px 0 #1A1A1A}
+  #titlebar{position:fixed;top:14px;left:14px;z-index:10;max-width:340px;padding:12px 14px}
+  #titlebar h1{margin:0;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+  #titlebar h1 b{color:var(--rust)}
+  #titlebar p{margin:6px 0 0;font-size:11px;line-height:1.45;color:var(--muted)}
+  #titlebar .law{margin-top:8px;padding-top:8px;border-top:1px dashed #1A1A1A;font-size:11px;color:var(--ink)}
+  #titlebar .law code{background:#1A1A1A;color:var(--bg);padding:1px 4px}
+
+  #hud{position:fixed;top:14px;right:14px;z-index:10;padding:12px 14px;min-width:210px;font-size:11px;line-height:1.6}
+  #hud .k{color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:10px}
+  #hud .v{font-weight:700}
+  #hud .row{display:flex;justify-content:space-between;gap:12px}
+  #hud hr{border:0;border-top:1px dashed #1A1A1A;margin:8px 0}
+
+  #legend{position:fixed;bottom:14px;left:14px;z-index:10;padding:10px 12px;font-size:11px;max-width:330px}
+  #legend .item{display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer}
+  #legend .item:hover{background:#00000010}
+  #legend .dot{width:11px;height:11px;border:1px solid #1A1A1A;flex:none}
+  #legend .meta{color:var(--muted)}
+
+  #focusbar{position:fixed;bottom:14px;right:14px;z-index:10;padding:10px 12px;font-size:11px;max-width:300px}
+  #focusbar .lbl{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+  #focusbar button{display:block;width:100%;text-align:left;background:var(--surface);border:var(--border);
+    font-family:inherit;font-size:11px;padding:5px 8px;margin:3px 0;cursor:pointer;box-shadow:2px 2px 0 #1A1A1A}
+  #focusbar button:hover{background:var(--rust);color:var(--surface)}
+
+  #tooltip{position:fixed;z-index:20;padding:10px 12px;max-width:260px;font-size:11px;line-height:1.5;
+    pointer-events:none;opacity:0;transition:opacity .08s}
+  #tooltip .t{font-weight:700;margin-bottom:4px}
+  #tooltip .src{color:var(--muted);margin-top:6px;font-size:10px}
+
+  #note{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:9;padding:6px 10px;
+    font-size:10px;color:var(--muted);background:#00000088;color:#eee;border:1px solid #000}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="titlebar" class="panel">
+  <h1>Cost of <b>Democracy</b> — blob prototype</h1>
+  <p>Each sphere is a budget item. Volume is strictly proportional to money. Democracy blobs are person-sized; trillion-euro blobs are stadium-sized.</p>
+  <div class="law">law: <code>volume &#8733; &#8364;</code> &nbsp;&middot;&nbsp; <code>radius = &#8731;(amount) &times; 0.85 m</code><br/>anchor: <b>&#8364;1M blob = 1.7 m</b> (a person)</div>
+</div>
+
+<div id="hud" class="panel">
+  <div class="row"><span class="k">View width</span><span class="v" id="hud-width">&mdash; m</span></div>
+  <div class="row"><span class="k">&#8776; across</span><span class="v" id="hud-money">&mdash;</span></div>
+  <hr/>
+  <div class="row"><span class="k">Zoom</span><span class="v" id="hud-zoom">1.0&times;</span></div>
+  <div class="row"><span class="k">Anchor</span><span class="v">&#8364;1M = 1.7 m</span></div>
+</div>
+
+<div id="legend" class="panel">
+  <div class="lbl" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Items (drag to orbit &middot; scroll to zoom)</div>
+  <div id="legend-list"></div>
+</div>
+
+<div id="focusbar" class="panel">
+  <div class="lbl">Focus camera on</div>
+  <div id="focus-list"></div>
+</div>
+
+<div id="tooltip" class="panel"></div>
+<div id="note">Illustrative amounts. Sourced &amp; per-year-normalized figures land in Phase 1.</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.161.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.161.0/examples/jsm/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ---------- Data (illustrative; per-year where natural) ---------- */
+const COLORS = {
+  democracy: 0x5D9B4B, // green
+  defense:   0xC0392B, // hazard rust
+  ai:        0xD4A017, // solar gold
+  wealth:    0x7B4F8F, // purple
+};
+const ITEMS = [
+  { id:'ca-fr',     label:"Citizens' Assembly (FR)",     amountM:5,        cat:'democracy', tag:'democracy',  note:'~per annual cycle' },
+  { id:'elec-fr',   label:'France election admin',      amountM:500,      cat:'democracy', tag:'democracy',  note:'per year' },
+  { id:'rafale',    label:'One Rafale fighter',          amountM:90,       cat:'defense',   tag:'defense',    note:'one-off unit (face value)' },
+  { id:'meta-ai',   label:'Meta AI CAPEX 2024',          amountM:35000,    cat:'ai',        tag:'ai',         note:'per year' },
+  { id:'ai-dc',     label:'Global AI datacentres',      amountM:530000,   cat:'ai',        tag:'ai',         note:'~per year (1.6T / 3y)' },
+  { id:'blackrock', label:'BlackRock AUM',               amountM:9000000,  cat:'wealth',    tag:'wealth',     note:'stock (face value; final = ratio)' },
+];
+
+/* ---------- Scale law ---------- */
+// volume ∝ money. radius = cbrt(amountM) in "units"; 1 unit-radius = 0.85 m  =>  €1M blob diameter = 1.7 m (a person)
+const M_PER_UNIT = 0.85;
+const PERSON_M = 1.7;
+const radiusFor = (amountM) => Math.cbrt(amountM) * M_PER_UNIT;
+const fmtEUR = (m) => m >= 1e6 ? `€${(m/1e6).toFixed(2)}T` : m >= 1e3 ? `€${(m/1e3).toFixed(1)}B` : `€${m.toFixed(0)}M`;
+
+/* ---------- Scene ---------- */
+const app = document.getElementById('app');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1117);
+scene.fog = new THREE.Fog(0x0d1117, 400, 4000);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 20000);
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+app.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 1; controls.maxDistance = 6000;
+
+scene.add(new THREE.HemisphereLight(0xfff3e0, 0x202020, 0.9));
+const key = new THREE.DirectionalLight(0xffffff, 1.1); key.position.set(50,120,80); scene.add(key);
+const fill = new THREE.DirectionalLight(0x88aaff, 0.35); fill.position.set(-80,40,-60); scene.add(fill);
+
+// ground reference (faint)
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(6000, 64),
+  new THREE.MeshBasicMaterial({ color:0x161b22 })
+);
+ground.rotation.x = -Math.PI/2; ground.position.y = -0.01; scene.add(ground);
+const grid = new THREE.GridHelper(4000, 80, 0x333333, 0x222222);
+grid.material.transparent = true; grid.material.opacity = 0.35; scene.add(grid);
+
+/* ---------- Build blobs ---------- */
+// Sort ascending so layout reads small -> large; lay out along +X, tangent with a small gap.
+const sorted = [...ITEMS].sort((a,b)=>a.amountM-b.amountM);
+const blobs = [];
+let cursor = 0;
+const GAP = 1.5;
+for (const it of sorted){
+  const r = radiusFor(it.amountM);
+  const x = cursor + r;
+  cursor = x + r + GAP;
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(Math.max(r,0.05), 48, 32),
+    new THREE.MeshStandardMaterial({ color:COLORS[it.cat], roughness:0.45, metalness:0.25 })
+  );
+  mesh.position.set(x, r, 0);
+  mesh.userData = { ...it, r };
+  scene.add(mesh);
+
+  // label sprite
+  const sprite = makeLabel(`${it.label}\n${fmtEUR(it.amountM)}  ·  ⌀ ${(r*2).toFixed(1)} m`, it.cat);
+  sprite.position.set(x, r*2 + Math.max(r*0.25,1.2), 0);
+  scene.add(sprite);
+
+  blobs.push({ mesh, it, r, x, sprite, visible:true });
+}
+
+/* ---------- Human reference (person = €1M) ---------- */
+const personR = radiusFor(1); // 0.85 m
+const personGroup = new THREE.Group();
+const body = new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.18, PERSON_M-0.5, 6, 12),
+  new THREE.MeshStandardMaterial({ color:0xf2cbb3, roughness:0.7 })
+);
+body.position.y = PERSON_M/2; personGroup.add(body);
+const psprite = makeLabel('person · 1.7 m\n= €1M blob', 'democracy');
+psprite.position.set(0, PERSON_M+0.8, 0); personGroup.add(psprite);
+personGroup.position.set(-personR-2, 0, 0);
+scene.add(personGroup);
+
+/* ---------- Helpers ---------- */
+function makeLabel(text, cat){
+  const lines = text.split('\n');
+  const fs = 44, pad = 14, lh = fs+8;
+  const cvs = document.createElement('canvas');
+  const ctx = cvs.getContext('2d');
+  ctx.font = `700 ${fs}px "IBM Plex Mono", monospace`;
+  let w = 0; for(const l of lines) w = Math.max(w, ctx.measureText(l).width);
+  cvs.width = w + pad*2; cvs.height = lines.length*lh + pad;
+  ctx.font = `700 ${fs}px "IBM Plex Mono", monospace`;
+  ctx.textBaseline = 'top';
+  const hex = '#'+COLORS[cat].toString(16).padStart(6,'0');
+  lines.forEach((l,i)=>{
+    ctx.fillStyle = 'rgba(245,241,232,0.96)';
+    ctx.fillRect(pad-6, pad+i*lh-4, w+12, lh);
+    ctx.fillStyle = hex; ctx.fillText(l, pad, pad+i*lh);
+  });
+  const tex = new THREE.CanvasTexture(cvs); tex.anisotropy = 4;
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, depthTest:false }));
+  const scale = 0.011;
+  spr.scale.set(cvs.width*scale, cvs.height*scale, 1);
+  spr.renderOrder = 999;
+  return spr;
+}
+
+/* ---------- Camera presets ---------- */
+function focusOn(b, zoom=4){
+  const dist = b.r * zoom;
+  const tgt = new THREE.Vector3(b.x, b.r, 0);
+  controls.target.copy(tgt);
+  camera.position.set(b.x, b.r + b.r*0.4, dist);
+  controls.update();
+}
+focusOn(blobs[0], 6); // start on the smallest (democracy)
+
+/* ---------- UI: legend + focus ---------- */
+const legendList = document.getElementById('legend-list');
+const focusList = document.getElementById('focus-list');
+blobs.forEach((b,i)=>{
+  // legend row (toggle visibility)
+  const row = document.createElement('div'); row.className='item';
+  row.innerHTML = `<span class="dot" style="background:#${COLORS[b.it.cat].toString(16).padStart(6,'0')}"></span>
+    <span><b>${b.it.label}</b> <span class="meta">— ${fmtEUR(b.it.amountM)} · ⌀${(b.r*2).toFixed(1)}m</span></span>`;
+  row.onclick = ()=>{ b.visible=!b.visible; b.mesh.visible=b.visible; b.sprite.visible=b.visible; row.style.opacity=b.visible?1:0.35; };
+  legendList.appendChild(row);
+
+  // focus button
+  const btn = document.createElement('button');
+  btn.textContent = `${b.it.label} — ${fmtEUR(b.it.amountM)}`;
+  btn.onclick = ()=>focusOn(b, Math.max(3.2, 4));
+  focusList.appendChild(btn);
+});
+
+/* ---------- Hover tooltip ---------- */
+const tooltip = document.getElementById('tooltip');
+const ray = new THREE.Raycaster();
+const ptr = new THREE.Vector2();
+let hovered = null;
+addEventListener('pointermove', (e)=>{
+  ptr.x = (e.clientX/innerWidth)*2-1; ptr.y = -(e.clientY/innerHeight)*2+1;
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects(blobs.filter(b=>b.visible).map(b=>b.mesh));
+  if(hits.length){
+    const b = blobs.find(x=>x.mesh===hits[0].object);
+    hovered = b;
+    const diam = (b.r*2);
+    tooltip.style.left = (e.clientX+16)+'px';
+    tooltip.style.top = (e.clientY+16)+'px';
+    tooltip.style.opacity = 1;
+    tooltip.innerHTML =
+      `<div class="t">${b.it.label}</div>
+       <div>Volume &prop; <b>${fmtEUR(b.it.amountM)}</b> (${b.it.amountM.toLocaleString()} M€)</div>
+       <div>Diameter: <b>${diam.toFixed(1)} m</b> &nbsp;·&nbsp; radius ${b.r.toFixed(2)} m</div>
+       <div>vs €1M person: <b>${(diam/PERSON_M).toFixed(1)}&times;</b> wide</div>
+       <div class="src">${b.it.note}</div>`;
+  } else { hovered=null; tooltip.style.opacity=0; }
+});
+
+/* ---------- HUD live readout ---------- */
+const hudWidth = document.getElementById('hud-width');
+const hudMoney = document.getElementById('hud-money');
+const hudZoom  = document.getElementById('hud-zoom');
+const startDist = camera.position.distanceTo(controls.target);
+function updateHUD(){
+  const d = camera.position.distanceTo(controls.target);
+  const vH = 2*d*Math.tan((camera.fov*Math.PI/180)/2); // visible height in metres
+  const vW = vH * camera.aspect;
+  hudWidth.textContent = `${vW.toFixed(0)} m`;
+  // money equivalent: treat visible width as a blob diameter =>  M = (vW / 1.7)^3
+  const eqM = Math.pow(vW/PERSON_M, 3);
+  hudMoney.textContent = eqM > 1 ? fmtEUR(eqM) : '< €1M';
+  hudZoom.textContent = (startDist/d).toFixed(2)+'×';
+}
+
+/* ---------- Loop ---------- */
+function loop(){
+  requestAnimationFrame(loop);
+  controls.update();
+  updateHUD();
+  renderer.render(scene, camera);
+}
+loop();
+
+/* ---------- Resize ---------- */
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
